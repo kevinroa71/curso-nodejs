@@ -4,13 +4,15 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const Usuario = require('../models/usuario');
 const {authentication, verifyAdminRole} = require('../middlewares/authentication');
+const {OAuth2Client} = require('google-auth-library');
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const app = express();
 
 app.get('/usuario', authentication, (req, res) => {
     const limit = 10;
     const pagina = Number(req.query.page) || 1;
     const skip = (pagina*limit)-limit;
-    const params = {estado: true};
+    const params = {};
 
     Usuario.countDocuments(params, (err, count) => {
         if (err) return res.status(400).send(err);
@@ -68,7 +70,7 @@ app.post('/login', (req, res) => {
     const email = req.body.email || '';
     const password = req.body.password || '';
 
-    Usuario.findOne({email, estado: true})
+    Usuario.findOne({email})
         .exec()
         .then(usuario => {
             if (!usuario)
@@ -89,6 +91,49 @@ app.post('/login', (req, res) => {
             });
         })
         .catch(err => res.status(500).send(err));
+});
+
+
+// Autenticacion con google
+async function google_verify(token) {
+    const ticket = await client.verifyIdToken({
+        idToken: token,
+        audience: process.env.GOOGLE_CLIENT_ID,  // Specify the CLIENT_ID of the app that accesses the backend
+        // Or, if multiple clients access the backend:
+        //[CLIENT_ID_1, CLIENT_ID_2, CLIENT_ID_3]
+    });
+    const payload = ticket.getPayload();
+    return {
+        nombre: payload.name,
+        email: payload.email,
+        img: payload.picture,
+        google: true,
+    };
+}
+
+app.post('/google', (req, res) => {
+    const token = req.body.idtoken;
+    google_verify(token)
+        .then(async (payload) => {
+            let usuario = await Usuario.findOne({email: payload.email}).exec();
+            if (!usuario) {
+                usuario = new Usuario(payload);
+                usuario.password = token;
+                usuario = await usuario.save();
+            }
+
+            const mytoken = jwt.sign({
+                data: usuario
+            }, process.env.JWT_SEED, {
+                expiresIn: process.env.JWT_EXPIRE
+            });
+
+            res.send({
+                usuario,
+                token: mytoken
+            });
+        })
+        .catch(err => res.status(401).send(err));
 });
 
 module.exports = app;
