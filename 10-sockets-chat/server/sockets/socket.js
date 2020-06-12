@@ -5,7 +5,7 @@ const usuarios = new Usuarios();
 
 io.on('connection', (client) => {
     client.on('entrarChat', (data) => {
-        let usuario = usuarios.agregarUsuario(client.id, data.nombre, data.sala);
+        let usuario = usuarios.agregarUsuario(client.id, data.nombre, data.sala, data.img);
         let lista = usuarios.listaUsuariosPorSala(usuario.sala);
 
         client.join(usuario.sala);
@@ -30,11 +30,15 @@ io.on('connection', (client) => {
             .emit('usuariosconectados', lista);
     });
 
-    client.on('mensaje', (mensaje) => {
+    client.on('mensaje', (mensaje, callback) => {
         let usuario = usuarios.buscarUsuario(client.id);
         client.broadcast
             .to(usuario.sala)
-            .emit('notificacion', `${usuario.nombre} dice: ${mensaje}`);
+            .emit('mensaje', {
+                usuario,
+                mensaje
+            });
+        callback();
     });
 
     client.on('mensajePrivado', (data) => {

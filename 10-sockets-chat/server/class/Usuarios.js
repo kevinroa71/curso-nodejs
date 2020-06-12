@@ -5,8 +5,8 @@ class Usuarios {
         this.usuarios = [];
     }
 
-    agregarUsuario(id, nombre, sala) {
-        let usuario = {id, nombre, sala};
+    agregarUsuario(id, nombre, sala, img) {
+        let usuario = {id, nombre, sala, img};
         this.usuarios.push(usuario);
         return usuario;
     }
